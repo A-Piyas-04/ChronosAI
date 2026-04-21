@@ -263,3 +263,98 @@ Partially update user preferences.
 - `404`: resource not found in user scope
 - `422`: schema validation errors (FastAPI/Pydantic)
 - `502`: upstream Google API failure during sync
+
+## Phase 3 Addendum (Current Implemented State)
+
+This section reflects the currently running backend after Phase 3 additions. Existing synchronous APIs remain unchanged; async endpoints are additive.
+
+### Async Calendar Trigger
+
+#### POST `/api/v1/calendar/sync/{connected_calendar_id}/async`
+
+Queue a background calendar sync job for one owned calendar.
+
+- Auth required: Yes
+- Path params:
+  - `connected_calendar_id: uuid`
+- Response `202`:
+  - `task_id: string`
+  - `status: "queued"`
+  - `message: "Calendar sync has been queued"`
+- Notes:
+  - route verifies the calendar belongs to the current user before queuing
+  - task is routed to queue: `calendar_sync`
+
+### Async Schedule Trigger
+
+#### POST `/api/v1/schedule/generate/async`
+
+Queue weekly schedule generation in background.
+
+- Auth required: Yes
+- Request body:
+  - `week_start_date: date` (must be Monday)
+  - `generation_type: string` (default `"initial"`)
+- Response `202`:
+  - `task_id: string`
+  - `status: "queued"`
+  - `message: "Schedule generation has been queued"`
+- Notes:
+  - task is routed to queue: `schedule_generation`
+
+### Job Status API
+
+#### GET `/api/v1/jobs/{task_id}`
+
+Read Celery task status/result.
+
+- Auth required: Yes
+- Path params:
+  - `task_id: string`
+- Response `200`:
+  - `task_id: string`
+  - `status: "PENDING" | "STARTED" | "SUCCESS" | "FAILURE" | "RETRY"`
+  - `result: object | null` (present only when state is `SUCCESS`)
+  - `error: string | null`
+- Environment behavior:
+  - in `development`, failure `error` includes task exception text
+  - in non-development, failure `error` is sanitized as `"Task failed"`
+
+### Celery Runtime Summary
+
+- Broker/backend: Redis (`settings.REDIS_URL`)
+- Worker queues:
+  - `calendar_sync`
+  - `schedule_generation`
+- Periodic task (beat):
+  - `sync_all_user_calendars_task` every 30 minutes
+
+### Current API Surface (Implemented)
+
+- Auth:
+  - `POST /api/v1/auth/register`
+  - `POST /api/v1/auth/login`
+  - `GET /api/v1/auth/google`
+  - `GET /api/v1/auth/google/callback`
+  - `GET /api/v1/auth/me`
+- Tasks:
+  - `POST /api/v1/tasks`
+  - `GET /api/v1/tasks`
+  - `GET /api/v1/tasks/{task_id}`
+  - `PATCH /api/v1/tasks/{task_id}`
+  - `DELETE /api/v1/tasks/{task_id}`
+- Calendar:
+  - `GET /api/v1/calendar/connected`
+  - `POST /api/v1/calendar/sync/{connected_calendar_id}`
+  - `POST /api/v1/calendar/sync/{connected_calendar_id}/async`
+  - `GET /api/v1/calendar/events`
+- Schedule:
+  - `POST /api/v1/schedule/generate`
+  - `POST /api/v1/schedule/generate/async`
+  - `GET /api/v1/schedule`
+  - `GET /api/v1/schedule/{schedule_id}`
+- Users:
+  - `GET /api/v1/users/me/preferences`
+  - `PATCH /api/v1/users/me/preferences`
+- Jobs:
+  - `GET /api/v1/jobs/{task_id}`

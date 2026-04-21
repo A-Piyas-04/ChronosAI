@@ -202,3 +202,59 @@ Unit tests target pure scheduler functions only:
 - priority-driven session ordering
 
 This keeps the algorithm independently verifiable from API/DB layers.
+
+## 10) Phase 3 Integration (Current State)
+
+Phase 3 introduces background execution around existing scheduling and calendar services without changing the core scheduling algorithm itself.
+
+### What Stayed the Same
+
+- `compute_free_windows`, `split_task_into_sessions`, `score_window_for_task`, and `generate_schedule` remain pure Python functions.
+- `build_schedule` remains the DB-aware orchestration entry point.
+- Scheduling business rules remain unchanged from Phase 2.
+
+### What Was Added
+
+- Celery worker application with two queues:
+  - `calendar_sync`
+  - `schedule_generation`
+- Schedule generation background task:
+  - `app.workers.schedule_tasks.generate_schedule_task`
+- Calendar background tasks:
+  - `app.workers.calendar_tasks.sync_calendar_task`
+  - `app.workers.calendar_tasks.sync_all_user_calendars_task`
+- Async API triggers:
+  - `POST /api/v1/schedule/generate/async`
+  - `POST /api/v1/calendar/sync/{connected_calendar_id}/async`
+- Job polling endpoint:
+  - `GET /api/v1/jobs/{task_id}`
+
+### Execution Model
+
+1. API endpoint validates request and ownership.
+2. Endpoint enqueues Celery task and returns `202 Accepted`.
+3. Worker opens its own async DB session (`AsyncSessionLocal`) inside task coroutine.
+4. Worker calls existing service (`build_schedule` / `sync_calendar`).
+5. Task result is written to Redis result backend.
+6. Client polls `/api/v1/jobs/{task_id}` for status.
+
+### Reliability Controls in Current Tasks
+
+- Explicit retry policy per task
+- Soft and hard time limits
+- Queue-level routing by domain
+- Idempotent service behavior retained (upsert/replacement patterns)
+
+## 11) Current Known Constraints
+
+- Scheduling placement still uses first-fit ordering after task weighting.
+- `score_window_for_task` is currently available but not used for slot selection.
+- No dynamic in-progress session re-optimization yet.
+- Background jobs currently use Redis result backend only (no dedicated DB job table).
+
+## 12) Next Practical Evolution
+
+- Introduce score-aware window selection in `generate_schedule`.
+- Add unscheduled-task reason reporting payloads.
+- Add job progress metadata for long-running sync-all operations.
+- Add scenario-based simulation tests for heavier task/event loads.

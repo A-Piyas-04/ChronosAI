@@ -592,3 +592,94 @@ This design supports future AI and LLM integration without forcing AI into the M
 
 Chronos is not just a task manager.  
 It is a **time allocation and scheduling engine** built on a clean separation between external commitments and internally generated work sessions.
+
+---
+
+## ✅ As-Built Snapshot (Phase 2 + Phase 3)
+
+This addendum reflects the current implemented database/service reality in the codebase.
+
+### Implemented Core Tables (Present Now)
+
+- `users`
+- `user_preferences`
+- `connected_calendars`
+- `calendar_events`
+- `tasks`
+- `schedules`
+- `schedule_sessions`
+- `session_logs`
+
+No new SQL tables were added for Phase 3 async jobs. Job status is tracked via Celery + Redis result backend.
+
+### Implemented Token Security (Current)
+
+`connected_calendars` currently stores OAuth material with encryption at rest:
+
+- `access_token` (encrypted via Fernet)
+- `refresh_token` (encrypted via Fernet)
+- `token_expiry` (timezone-aware datetime)
+
+Encryption/decryption is handled in application code via `app/core/security.py`.
+
+### Implemented Calendar Event Shape (Current)
+
+The current implementation includes:
+
+- `external_event_id` unique per `(connected_calendar_id, external_event_id)`
+- `is_busy`, `is_all_day`, `is_recurring`, `raw_payload`
+- timezone-aware `start_at`, `end_at`
+
+Note: The current code model does **not** persist a standalone `status` column on `calendar_events`; cancellation/free semantics are handled at sync time before upsert.
+
+### Implemented Indexes (Current Migration)
+
+From `20260421_0001_initial_schema.py`, currently present:
+
+- `users`: `ix_users_email`
+- `calendar_events`:
+  - `ix_calendar_events_user_id_start_at`
+  - unique `(connected_calendar_id, external_event_id)`
+- `tasks`:
+  - `ix_tasks_user_id_status`
+  - `ix_tasks_user_id_deadline_at`
+  - `ix_tasks_user_id_priority`
+- `schedules`:
+  - `ix_schedules_user_id_week_start_date`
+  - `ix_schedules_user_id_status`
+- `schedule_sessions`:
+  - `ix_schedule_sessions_schedule_id`
+  - `ix_schedule_sessions_user_id_planned_start_at`
+  - `ix_schedule_sessions_user_id_status`
+  - `ix_schedule_sessions_task_id`
+- `session_logs`:
+  - `ix_session_logs_session_id_logged_at`
+
+### Phase 3 Infrastructure Data Strategy
+
+- Celery task metadata/result payloads are stored in Redis (Celery backend).
+- No job table/migration was introduced by design.
+- Existing relational entities remain the source of truth for business data.
+
+### Current Scheduling Write Path
+
+When generating a week schedule:
+
+1. Existing active week schedule is marked `replaced`.
+2. New `schedules` row is inserted with `status="active"`.
+3. Generated sessions are inserted into `schedule_sessions`.
+4. Scheduled tasks are updated to `status="scheduled"`.
+
+This preserves immutable schedule versions and avoids in-place destructive edits.
+
+### Runtime Services Added in Phase 3 (Non-DB)
+
+Docker services now include:
+
+- `backend`
+- `db`
+- `redis`
+- `celery_worker`
+- `celery_beat`
+
+Beat dispatches periodic calendar sync-all jobs every 30 minutes.
