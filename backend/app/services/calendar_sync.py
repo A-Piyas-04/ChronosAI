@@ -10,9 +10,12 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
+from app.core.logging import get_logger
 from app.core.security import decrypt_token, encrypt_token
 from app.models.calendar_event import CalendarEvent
 from app.models.connected_calendar import ConnectedCalendar
+
+logger = get_logger(__name__)
 
 
 @dataclass
@@ -84,6 +87,23 @@ async def get_connected_calendars(db: AsyncSession, user_id: UUID) -> list[Conne
     return list(result.scalars().all())
 
 
+async def get_connected_calendar_by_id(
+    db: AsyncSession,
+    user_id: UUID,
+    connected_calendar_id: UUID,
+) -> ConnectedCalendar:
+    result = await db.execute(
+        select(ConnectedCalendar).where(
+            ConnectedCalendar.id == connected_calendar_id,
+            ConnectedCalendar.user_id == user_id,
+        )
+    )
+    connected_calendar = result.scalar_one_or_none()
+    if not connected_calendar:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Connected calendar not found")
+    return connected_calendar
+
+
 async def get_busy_events_for_week(db: AsyncSession, user_id: UUID, week_start: date) -> list[CalendarEvent]:
     week_start_dt = datetime.combine(week_start, time.min, tzinfo=UTC)
     week_end_dt = week_start_dt + timedelta(days=7)
@@ -99,15 +119,8 @@ async def get_busy_events_for_week(db: AsyncSession, user_id: UUID, week_start: 
 
 
 async def sync_calendar(db: AsyncSession, user_id: UUID, connected_calendar_id: UUID) -> CalendarSyncResult:
-    calendar_result = await db.execute(
-        select(ConnectedCalendar).where(
-            ConnectedCalendar.id == connected_calendar_id,
-            ConnectedCalendar.user_id == user_id,
-        )
-    )
-    connected_calendar = calendar_result.scalar_one_or_none()
-    if not connected_calendar:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Connected calendar not found")
+    logger.info("Starting calendar sync for calendar_id=%s", connected_calendar_id)
+    connected_calendar = await get_connected_calendar_by_id(db, user_id, connected_calendar_id)
 
     credentials = _build_google_credentials(connected_calendar)
     if credentials.expired and credentials.refresh_token:
@@ -181,6 +194,7 @@ async def sync_calendar(db: AsyncSession, user_id: UUID, connected_calendar_id: 
 
     connected_calendar.last_synced_at = synced_at
     await db.commit()
+    logger.info("Completed calendar sync for calendar_id=%s synced=%s", connected_calendar_id, synced_count)
 
     return CalendarSyncResult(
         calendar_id=connected_calendar.calendar_id,

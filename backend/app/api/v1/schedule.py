@@ -7,9 +7,11 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.dependencies import get_current_user
 from app.db.session import get_db
 from app.models.user import User
+from app.schemas.job import JobQueuedResponse
 from app.schemas.schedule import ScheduleGenerateRequest, ScheduleResponse
 from app.services.schedule_service import get_schedule_by_id, get_schedule_by_week
 from app.services.scheduling_engine import build_schedule
+from app.workers.schedule_tasks import generate_schedule_task
 
 router = APIRouter()
 
@@ -27,6 +29,30 @@ async def generate_schedule_route(
         generation_type=payload.generation_type,
     )
     return ScheduleResponse.model_validate(schedule)
+
+
+@router.post(
+    "/generate/async",
+    response_model=JobQueuedResponse,
+    status_code=status.HTTP_202_ACCEPTED,
+)
+async def generate_schedule_async_route(
+    payload: ScheduleGenerateRequest,
+    current_user: User = Depends(get_current_user),
+) -> JobQueuedResponse:
+    task = generate_schedule_task.apply_async(
+        args=[
+            str(current_user.id),
+            payload.week_start_date.isoformat(),
+            payload.generation_type,
+        ],
+        queue="schedule_generation",
+    )
+    return JobQueuedResponse(
+        task_id=task.id,
+        status="queued",
+        message="Schedule generation has been queued",
+    )
 
 
 @router.get("/", response_model=ScheduleResponse)

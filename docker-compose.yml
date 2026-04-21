@@ -45,6 +45,45 @@ services:
     networks:
       - chronos_net
 
+  celery_worker:
+    build: ./backend
+    container_name: chronos_worker
+    command: >
+      celery -A app.workers.celery_app:celery_app worker
+      --loglevel=info
+      --concurrency=2
+      --queues=calendar_sync,schedule_generation
+    volumes:
+      - ./backend:/app
+    env_file:
+      - ./backend/.env
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_started
+    networks:
+      - chronos_net
+    restart: unless-stopped
+
+  celery_beat:
+    build: ./backend
+    container_name: chronos_beat
+    command: >
+      celery -A app.workers.celery_app:celery_app beat
+      --loglevel=info
+      --scheduler celery.beat:PersistentScheduler
+      --schedule /tmp/celerybeat-schedule
+    volumes:
+      - ./backend:/app
+    env_file:
+      - ./backend/.env
+    depends_on:
+      - redis
+    networks:
+      - chronos_net
+    restart: unless-stopped
+
 volumes:
   postgres_data:
 

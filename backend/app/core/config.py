@@ -9,6 +9,9 @@ class Settings(BaseSettings):
     FERNET_KEY: str
     DATABASE_URL: str
     REDIS_URL: str = "redis://redis:6379/0"
+    CELERY_TASK_ALWAYS_EAGER: bool = False
+    CELERY_MAX_RETRIES_CALENDAR: int = 3
+    CELERY_MAX_RETRIES_SCHEDULE: int = 2
     GOOGLE_CLIENT_ID: str = ""
     GOOGLE_CLIENT_SECRET: str = ""
     GOOGLE_REDIRECT_URI: str = ""

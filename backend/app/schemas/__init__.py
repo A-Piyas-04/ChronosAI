@@ -6,6 +6,7 @@ from app.schemas.auth import (
     TokenResponse,
 )
 from app.schemas.calendar import CalendarEventResponse, CalendarSyncResponse, ConnectedCalendarResponse
+from app.schemas.job import JobQueuedResponse, JobStatusResponse
 from app.schemas.schedule import ScheduleGenerateRequest, ScheduleResponse, ScheduleSessionResponse
 from app.schemas.task import TaskCreate, TaskResponse, TaskUpdate
 from app.schemas.user import UserPreferencesResponse, UserPreferencesUpdate, UserResponse
@@ -28,4 +29,6 @@ __all__ = [
     "ConnectedCalendarResponse",
     "CalendarSyncResponse",
     "CalendarEventResponse",
+    "JobQueuedResponse",
+    "JobStatusResponse",
 ]

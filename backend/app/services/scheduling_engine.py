@@ -7,12 +7,15 @@ from sqlalchemy import or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
+from app.core.logging import get_logger
 from app.models.calendar_event import CalendarEvent
 from app.models.schedule import Schedule
 from app.models.schedule_session import ScheduleSession
 from app.models.task import Task
 from app.models.user import User
 from app.models.user_preferences import UserPreferences
+
+logger = get_logger(__name__)
 
 
 @dataclass
@@ -204,6 +207,7 @@ async def build_schedule(
     week_start_date: date,
     generation_type: str,
 ) -> Schedule:
+    logger.info("Building schedule for user_id=%s week_start=%s", user_id, week_start_date)
     week_start = datetime.combine(week_start_date, time.min, tzinfo=UTC)
     week_end = week_start + timedelta(days=7)
 
@@ -330,4 +334,5 @@ async def build_schedule(
     refreshed_result = await db.execute(
         select(Schedule).where(Schedule.id == schedule.id).options(selectinload(Schedule.sessions))
     )
+    logger.info("Schedule generated schedule_id=%s sessions=%s", schedule.id, len(planned_sessions))
     return refreshed_result.scalar_one()
