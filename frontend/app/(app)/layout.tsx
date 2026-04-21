@@ -8,7 +8,7 @@ export default function AppLayout({
   return (
     <div>
       <Sidebar />
-      <main className="ml-60 min-h-screen bg-gray-50">{children}</main>
+      <main className="md:ml-60 min-h-screen bg-gray-50">{children}</main>
     </div>
   )
 }

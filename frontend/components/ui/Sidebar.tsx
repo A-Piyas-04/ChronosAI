@@ -53,7 +53,7 @@ export function Sidebar() {
   const { data: user } = useMe()
 
   return (
-    <aside className="w-60 h-screen fixed top-0 left-0 bg-white border-r border-gray-200 flex flex-col">
+    <aside className="w-60 h-screen fixed top-0 left-0 bg-white border-r border-gray-200 hidden md:flex flex-col">
       <div className="p-6">
         <span className="text-xl font-bold text-indigo-600">Chronos</span>
       </div>
