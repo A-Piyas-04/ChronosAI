@@ -8,10 +8,10 @@ from app.db.session import get_db
 from app.models.user import User
 from app.schemas.task import TaskCreate, TaskResponse, TaskUpdate
 from app.services.task_service import (
-    archive_task,
     create_task,
-    get_task_or_404,
-    list_tasks,
+    delete_task,
+    get_task_by_id,
+    get_tasks,
     update_task,
 )
 
@@ -24,17 +24,19 @@ async def create_task_route(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ) -> TaskResponse:
-    task = await create_task(db, current_user, payload)
+    task = await create_task(db, current_user.id, payload)
     return TaskResponse.model_validate(task)
 
 
 @router.get("/", response_model=list[TaskResponse])
 async def list_tasks_route(
-    include_archived: bool = Query(default=False),
+    status_filter: str | None = Query(default=None, alias="status"),
+    skip: int = Query(default=0, ge=0),
+    limit: int = Query(default=50, ge=1, le=200),
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ) -> list[TaskResponse]:
-    tasks = await list_tasks(db, current_user, include_archived=include_archived)
+    tasks = await get_tasks(db, current_user.id, status_filter, skip, limit)
     return [TaskResponse.model_validate(task) for task in tasks]
 
 
@@ -44,7 +46,7 @@ async def get_task_route(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ) -> TaskResponse:
-    task = await get_task_or_404(db, current_user.id, task_id)
+    task = await get_task_by_id(db, current_user.id, task_id)
     return TaskResponse.model_validate(task)
 
 
@@ -55,8 +57,7 @@ async def update_task_route(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ) -> TaskResponse:
-    task = await get_task_or_404(db, current_user.id, task_id)
-    updated = await update_task(db, task, payload)
+    updated = await update_task(db, current_user.id, task_id, payload)
     return TaskResponse.model_validate(updated)
 
 
@@ -66,6 +67,5 @@ async def archive_task_route(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ) -> Response:
-    task = await get_task_or_404(db, current_user.id, task_id)
-    await archive_task(db, task)
+    await delete_task(db, current_user.id, task_id)
     return Response(status_code=status.HTTP_204_NO_CONTENT)
