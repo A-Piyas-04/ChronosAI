@@ -84,6 +84,19 @@ services:
       - chronos_net
     restart: unless-stopped
 
+  frontend:
+    build: ./frontend
+    container_name: chronos_frontend
+    ports:
+      - "3000:3000"
+    environment:
+      - NEXT_PUBLIC_API_URL=http://backend:8000
+      - NEXT_PUBLIC_APP_URL=http://localhost:3000
+    depends_on:
+      - backend
+    networks:
+      - chronos_net
+
 volumes:
   postgres_data:
 
