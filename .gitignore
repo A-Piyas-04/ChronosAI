@@ -35,4 +35,11 @@ yarn-error.log*
 *.tsbuildinfo
 next-env.d.ts
 
+# Environment files — never commit secrets
 .env
+.env.*
+backend/.env
+backend/.env.*
+frontend/.env.local
+!backend/.env.example
+!frontend/.env.local.example
