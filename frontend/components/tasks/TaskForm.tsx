@@ -1,15 +1,18 @@
 "use client"
 
 import { useEffect } from "react"
-import { useForm } from "react-hook-form"
+import { useForm, Controller } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { z } from "zod"
 import { isAxiosError } from "axios"
 import { format } from "date-fns"
 import { Button } from "@/components/ui/Button"
-import { Input } from "@/components/ui/Input"
+import { Input, Textarea } from "@/components/ui/Input"
+import { Select } from "@/components/ui/Select"
+import { Toggle } from "@/components/ui/Toggle"
 import { ErrorMessage } from "@/components/ui/ErrorMessage"
 import { useCreateTask, useUpdateTask } from "@/lib/hooks/useTasks"
+import { useToast } from "@/lib/providers/ToastProvider"
 import { cn } from "@/lib/utils/cn"
 import type { TaskResponse } from "@/types/task"
 
@@ -46,20 +49,27 @@ interface TaskFormProps {
   onClose: () => void
 }
 
-const selectClass =
-  "w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+function SectionLabel({ children }: { children: React.ReactNode }) {
+  return (
+    <h3 className="text-xs font-semibold text-text-secondary uppercase tracking-wider mb-3">
+      {children}
+    </h3>
+  )
+}
 
 export function TaskForm({ task, onClose }: TaskFormProps) {
   const isEditing = !!task
   const createTask = useCreateTask()
   const updateTask = useUpdateTask()
   const mutation = isEditing ? updateTask : createTask
+  const { showToast } = useToast()
 
   const {
     register,
     handleSubmit,
     watch,
     reset,
+    control,
     formState: { errors },
   } = useForm<FormValues>({
     resolver: zodResolver(schema),
@@ -109,10 +119,20 @@ export function TaskForm({ task, onClose }: TaskFormProps) {
     if (isEditing && task) {
       updateTask.mutate(
         { id: task.id, data: payload },
-        { onSuccess: onClose }
+        {
+          onSuccess: () => {
+            showToast("Task updated", "success")
+            onClose()
+          },
+        }
       )
     } else {
-      createTask.mutate(payload, { onSuccess: onClose })
+      createTask.mutate(payload, {
+        onSuccess: () => {
+          showToast("Task added", "success")
+          onClose()
+        },
+      })
     }
   }
 
@@ -124,116 +144,133 @@ export function TaskForm({ task, onClose }: TaskFormProps) {
     : null
 
   return (
-    <form onSubmit={handleSubmit(onSubmit)} className="space-y-4" noValidate>
-      <Input
-        label="Title"
-        error={errors.title?.message}
-        placeholder="Task title"
-        {...register("title")}
-      />
+    <form onSubmit={handleSubmit(onSubmit)} className="space-y-5" noValidate>
+      <section>
+        <SectionLabel>What needs to be done?</SectionLabel>
+        <div className="space-y-3">
+          <input
+            type="text"
+            placeholder="Task name"
+            aria-label="Task name"
+            className={cn(
+              "w-full px-0 py-2 text-base font-medium bg-transparent",
+              "text-text-primary placeholder:text-text-tertiary",
+              "border-0 border-b border-border-subtle",
+              "focus:outline-none focus:border-brand-500 transition-colors duration-150"
+            )}
+            {...register("title")}
+          />
+          {errors.title && (
+            <p className="text-xs text-danger-text">{errors.title.message}</p>
+          )}
 
-      <div className="flex flex-col gap-1">
-        <label className="text-sm font-medium text-gray-700">
-          Description
-        </label>
-        <textarea
-          rows={3}
-          placeholder="Optional description"
-          className={cn(
-            "w-full border rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:border-transparent resize-none",
-            errors.description
-              ? "border-red-500 focus:ring-red-500"
-              : "border-gray-300 focus:ring-indigo-500"
-          )}
-          {...register("description")}
-        />
-        <div className="flex justify-between">
-          {errors.description ? (
-            <span className="text-xs text-red-600">{errors.description.message}</span>
-          ) : (
-            <span />
-          )}
-          <span className="text-xs text-gray-400">{descriptionValue.length} / 500</span>
+          <Textarea
+            placeholder="Optional description"
+            {...register("description")}
+            className="min-h-[60px]"
+          />
+          <div className="flex justify-between items-center">
+            {errors.description ? (
+              <span className="text-xs text-danger-text">
+                {errors.description.message}
+              </span>
+            ) : (
+              <span />
+            )}
+            <span className="text-xs text-text-tertiary">
+              {descriptionValue.length} / 500
+            </span>
+          </div>
         </div>
-      </div>
+      </section>
 
-      <Input
-        label="Estimated Duration (minutes)"
-        type="number"
-        min={15}
-        max={480}
-        step={5}
-        error={errors.estimated_minutes?.message}
-        {...register("estimated_minutes")}
-      />
+      <section className="mt-4 pt-5 border-t border-border-subtle">
+        <SectionLabel>How should we schedule it?</SectionLabel>
 
-      <Input
-        label="Deadline (optional)"
-        type="datetime-local"
-        error={errors.deadline_at?.message}
-        {...register("deadline_at")}
-      />
+        <div className="space-y-4">
+          <div className="grid grid-cols-2 gap-3">
+            <div className="relative">
+              <Input
+                label="Duration"
+                type="number"
+                min={15}
+                max={480}
+                step={5}
+                error={errors.estimated_minutes?.message}
+                {...register("estimated_minutes")}
+              />
+              <span className="absolute right-3 top-[34px] text-xs text-text-tertiary pointer-events-none">
+                min
+              </span>
+            </div>
+            <Input
+              label="Deadline"
+              type="datetime-local"
+              error={errors.deadline_at?.message}
+              {...register("deadline_at")}
+            />
+          </div>
 
-      <div className="grid grid-cols-2 gap-4">
-        <div className="flex flex-col gap-1">
-          <label className="text-sm font-medium text-gray-700">Priority</label>
-          <select className={selectClass} {...register("priority")}>
-            <option value="low">Low</option>
-            <option value="medium">Medium</option>
-            <option value="high">High</option>
-            <option value="urgent">Urgent</option>
-          </select>
-          {errors.priority && (
-            <span className="text-xs text-red-600">{errors.priority.message}</span>
-          )}
+          <div className="grid grid-cols-2 gap-3">
+            <Select
+              label="Priority"
+              error={errors.priority?.message}
+              {...register("priority")}
+            >
+              <option value="low">Low</option>
+              <option value="medium">Medium</option>
+              <option value="high">High</option>
+              <option value="urgent">Urgent</option>
+            </Select>
+
+            <Select
+              label="Type"
+              error={errors.task_type?.message}
+              {...register("task_type")}
+            >
+              <option value="unspecified">Unspecified</option>
+              <option value="deep">Deep Work</option>
+              <option value="mechanical">Mechanical</option>
+            </Select>
+          </div>
+
+          <Select
+            label="Preferred time of day"
+            {...register("preferred_time_of_day")}
+          >
+            <option value="">Any time</option>
+            <option value="morning">Morning</option>
+            <option value="afternoon">Afternoon</option>
+            <option value="evening">Evening</option>
+          </Select>
+
+          <div className="pt-2">
+            <Controller
+              name="is_flexible"
+              control={control}
+              render={({ field }) => (
+                <Toggle
+                  label="Flexible timing"
+                  description="Chronos can move this session"
+                  checked={!!field.value}
+                  onChange={(e) => field.onChange(e.target.checked)}
+                />
+              )}
+            />
+          </div>
         </div>
-
-        <div className="flex flex-col gap-1">
-          <label className="text-sm font-medium text-gray-700">Task Type</label>
-          <select className={selectClass} {...register("task_type")}>
-            <option value="deep">Deep Work</option>
-            <option value="mechanical">Mechanical</option>
-            <option value="unspecified">Unspecified</option>
-          </select>
-          {errors.task_type && (
-            <span className="text-xs text-red-600">{errors.task_type.message}</span>
-          )}
-        </div>
-      </div>
-
-      <div className="flex flex-col gap-1">
-        <label className="text-sm font-medium text-gray-700">
-          Preferred Time of Day (optional)
-        </label>
-        <select className={selectClass} {...register("preferred_time_of_day")}>
-          <option value="">Any Time</option>
-          <option value="morning">Morning</option>
-          <option value="afternoon">Afternoon</option>
-          <option value="evening">Evening</option>
-        </select>
-      </div>
-
-      <label className="flex items-center gap-3 cursor-pointer">
-        <input
-          type="checkbox"
-          className="w-4 h-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
-          {...register("is_flexible")}
-        />
-        <span className="text-sm text-gray-700">
-          Allow Chronos to move this session if needed
-        </span>
-      </label>
+      </section>
 
       {apiErrorMessage && <ErrorMessage message={apiErrorMessage} />}
 
-      <Button
-        type="submit"
-        variant="primary"
-        className="w-full"
-        loading={mutation.isPending}
-      >
-        {isEditing ? "Save Changes" : "Add Task"}
-      </Button>
+      <div className="flex gap-3 justify-end pt-2">
+        <Button type="button" variant="secondary" onClick={onClose}>
+          Cancel
+        </Button>
+        <Button type="submit" variant="primary" loading={mutation.isPending}>
+          {isEditing ? "Save Changes" : "Add Task"}
+        </Button>
+      </div>
     </form>
   )
 }

@@ -1,9 +1,8 @@
 import type { Metadata } from "next"
-import { Inter } from "next/font/google"
 import { QueryProvider } from "@/lib/providers/QueryProvider"
+import { ThemeProvider } from "@/lib/providers/ThemeProvider"
+import { ToastProvider } from "@/lib/providers/ToastProvider"
 import "./globals.css"
-
-const inter = Inter({ subsets: ["latin"] })
 
 export const metadata: Metadata = {
   title: "Chronos AI",
@@ -16,9 +15,13 @@ export default function RootLayout({
   children: React.ReactNode
 }) {
   return (
-    <html lang="en">
-      <body className={inter.className}>
-        <QueryProvider>{children}</QueryProvider>
+    <html lang="en" suppressHydrationWarning>
+      <body className="font-sans">
+        <ThemeProvider>
+          <ToastProvider>
+            <QueryProvider>{children}</QueryProvider>
+          </ToastProvider>
+        </ThemeProvider>
       </body>
     </html>
   )

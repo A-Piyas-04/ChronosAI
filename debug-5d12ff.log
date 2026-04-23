@@ -1,0 +1,7 @@
+{"sessionId": "5d12ff", "timestamp": 1776970418178, "location": "gui_db_viewer.py", "message": "STARTUP: stdlib+sqlalchemy imports OK", "data": {}, "hypothesisId": "post-fix"}
+{"sessionId": "5d12ff", "timestamp": 1776970418336, "location": "gui_db_viewer.py", "message": "all model imports succeeded", "data": {}, "hypothesisId": "post-fix"}
+{"sessionId": "5d12ff", "timestamp": 1776970418337, "location": "gui_db_viewer.py", "message": "main() called, creating tk.Tk()", "data": {}, "hypothesisId": "post-fix"}
+{"sessionId": "5d12ff", "timestamp": 1776970418417, "location": "gui_db_viewer.py", "message": "DBViewerApp.__init__ started, building UI", "data": {}, "hypothesisId": "post-fix"}
+{"sessionId": "5d12ff", "timestamp": 1776970418446, "location": "gui_db_viewer.py", "message": "docker probe thread started", "data": {}, "hypothesisId": "post-fix"}
+{"sessionId": "5d12ff", "timestamp": 1776970418446, "location": "gui_db_viewer.py", "message": "entering mainloop", "data": {}, "hypothesisId": "post-fix"}
+{"sessionId": "5d12ff", "timestamp": 1776970418656, "location": "gui_db_viewer.py", "message": "docker probe OK", "data": {}, "hypothesisId": "post-fix"}

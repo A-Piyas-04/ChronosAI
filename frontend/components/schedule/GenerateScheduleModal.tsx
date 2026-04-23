@@ -1,17 +1,14 @@
 "use client"
 
-import { useEffect } from "react"
-import { useForm } from "react-hook-form"
-import { zodResolver } from "@hookform/resolvers/zod"
-import { z } from "zod"
+import { useEffect, useState } from "react"
+import { addDays, format } from "date-fns"
 import { isAxiosError } from "axios"
 import { Modal } from "@/components/ui/Modal"
 import { Button } from "@/components/ui/Button"
-import { Input } from "@/components/ui/Input"
 import { ErrorMessage } from "@/components/ui/ErrorMessage"
-import { useGenerateSchedule } from "@/lib/hooks/useSchedule"
-import { useSchedule } from "@/lib/hooks/useSchedule"
-import { toISODateString } from "@/lib/utils/date"
+import { useGenerateSchedule, useSchedule } from "@/lib/hooks/useSchedule"
+import { useToast } from "@/lib/providers/ToastProvider"
+import { getWeekStart, toISODateString } from "@/lib/utils/date"
 
 interface GenerateScheduleModalProps {
   isOpen: boolean
@@ -19,90 +16,117 @@ interface GenerateScheduleModalProps {
   weekStart: Date
 }
 
-const schema = z.object({
-  week_start_date: z
-    .string()
-    .min(1, "Required")
-    .refine((val) => !isNaN(new Date(val + "T00:00:00").getTime()), {
-      message: "Invalid date",
-    })
-    .refine(
-      (val) => {
-        const [year, month, day] = val.split("-").map(Number)
-        const date = new Date(year, month - 1, day)
-        return date.getDay() === 1
-      },
-      { message: "Schedule must start on a Monday" }
-    ),
-  generation_type: z.string(),
-})
-
-type FormValues = z.infer<typeof schema>
-
 export function GenerateScheduleModal({
   isOpen,
   onClose,
   weekStart,
 }: GenerateScheduleModalProps) {
-  const { data: existingSchedule } = useSchedule(toISODateString(weekStart))
+  const [selectedWeek, setSelectedWeek] = useState<Date>(() =>
+    getWeekStart(weekStart)
+  )
+
+  useEffect(() => {
+    if (isOpen) {
+      setSelectedWeek(getWeekStart(weekStart))
+    }
+  }, [isOpen, weekStart])
+
+  const weekStartStr = toISODateString(selectedWeek)
+  const { data: existingSchedule } = useSchedule(weekStartStr)
   const generateSchedule = useGenerateSchedule()
+  const { showToast } = useToast()
 
-  const {
-    register,
-    handleSubmit,
-    watch,
-    setValue,
-    formState: { errors },
-  } = useForm<FormValues>({
-    resolver: zodResolver(schema),
-    defaultValues: {
-      week_start_date: toISODateString(weekStart),
-      generation_type: "initial",
-    },
-  })
+  const generationType = existingSchedule ? "manual_replan" : "initial"
+  const weekEnd = addDays(selectedWeek, 6)
 
-  useEffect(() => {
-    setValue("week_start_date", toISODateString(weekStart))
-  }, [weekStart, setValue])
-
-  useEffect(() => {
-    setValue(
-      "generation_type",
-      existingSchedule ? "manual_replan" : "initial"
-    )
-  }, [existingSchedule, setValue])
-
-  const generationType = watch("generation_type")
-
-  const onSubmit = (values: FormValues) => {
+  const handleSubmit = () => {
     generateSchedule.mutate(
       {
-        week_start_date: values.week_start_date,
-        generation_type: values.generation_type,
+        week_start_date: weekStartStr,
+        generation_type: generationType,
       },
-      { onSuccess: onClose }
+      {
+        onSuccess: () => {
+          showToast("Schedule generated!", "success")
+          onClose()
+        },
+      }
     )
   }
 
+  const prevWeek = () => setSelectedWeek((d) => addDays(d, -7))
+  const nextWeek = () => setSelectedWeek((d) => addDays(d, 7))
+
   const apiErrorMessage = generateSchedule.isError
     ? isAxiosError(generateSchedule.error)
-      ? (generateSchedule.error.response?.data?.detail ?? "Failed to generate schedule")
+      ? (generateSchedule.error.response?.data?.detail ??
+        "Failed to generate schedule")
       : "Failed to generate schedule"
     : null
 
   return (
     <Modal isOpen={isOpen} onClose={onClose} title="Generate Schedule">
-      <form onSubmit={handleSubmit(onSubmit)} className="space-y-4" noValidate>
-        <Input
-          label="Week Starting"
-          type="date"
-          error={errors.week_start_date?.message}
-          {...register("week_start_date")}
-        />
+      <div className="space-y-5">
+        <div className="flex items-center justify-between">
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={prevWeek}
+            aria-label="Previous week"
+            className="w-9 h-9 p-0"
+          >
+            <svg
+              className="w-4 h-4"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+              strokeWidth={2}
+              aria-hidden="true"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                d="M15.75 19.5L8.25 12l7.5-7.5"
+              />
+            </svg>
+          </Button>
 
-        <div className="bg-blue-50 border border-blue-200 rounded-md p-3 flex items-start gap-2">
+          <div className="text-center">
+            <p className="text-lg font-semibold text-text-primary">
+              Week of {format(selectedWeek, "MMM d, yyyy")}
+            </p>
+            <p className="text-sm text-text-secondary mt-0.5">
+              {format(selectedWeek, "EEE MMM d")} → {format(weekEnd, "EEE MMM d")}
+            </p>
+          </div>
+
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={nextWeek}
+            aria-label="Next week"
+            className="w-9 h-9 p-0"
+          >
+            <svg
+              className="w-4 h-4"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+              strokeWidth={2}
+              aria-hidden="true"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                d="M8.25 4.5l7.5 7.5-7.5 7.5"
+              />
+            </svg>
+          </Button>
+        </div>
+
+        <div className="bg-info-bg border border-info-border rounded-lg p-3 flex gap-2.5 items-start">
           <svg
-            className="w-4 h-4 text-blue-500 mt-0.5 shrink-0"
+            className="w-4 h-4 text-info-text mt-0.5 shrink-0"
             fill="none"
             viewBox="0 0 24 24"
             stroke="currentColor"
@@ -115,7 +139,7 @@ export function GenerateScheduleModal({
               d="M11.25 11.25l.041-.02a.75.75 0 011.063.852l-.708 2.836a.75.75 0 001.063.853l.041-.021M21 12a9 9 0 11-18 0 9 9 0 0118 0zm-9-3.75h.008v.008H12V8.25z"
             />
           </svg>
-          <p className="text-sm text-blue-700">
+          <p className="text-sm text-info-text">
             {generationType === "manual_replan"
               ? "A schedule already exists for this week. Generating will replace it."
               : "Chronos will schedule your inbox tasks around your calendar commitments."}
@@ -129,14 +153,15 @@ export function GenerateScheduleModal({
             Cancel
           </Button>
           <Button
-            type="submit"
+            type="button"
             variant="primary"
+            onClick={handleSubmit}
             loading={generateSchedule.isPending}
           >
             Generate
           </Button>
         </div>
-      </form>
+      </div>
     </Modal>
   )
 }

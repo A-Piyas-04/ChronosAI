@@ -16,6 +16,12 @@ export function Modal({ isOpen, onClose, title, children }: ModalProps) {
     }
     if (isOpen) {
       document.addEventListener("keydown", handleKeyDown)
+      const prevOverflow = document.body.style.overflow
+      document.body.style.overflow = "hidden"
+      return () => {
+        document.removeEventListener("keydown", handleKeyDown)
+        document.body.style.overflow = prevOverflow
+      }
     }
     return () => document.removeEventListener("keydown", handleKeyDown)
   }, [isOpen, onClose])
@@ -23,33 +29,38 @@ export function Modal({ isOpen, onClose, title, children }: ModalProps) {
   if (!isOpen) return null
 
   return (
-    <>
+    <div
+      className="fixed inset-0 z-50 bg-bg-overlay backdrop-blur-sm animate-fade-in flex items-center justify-center p-4"
+      onClick={onClose}
+      aria-hidden="false"
+    >
       <div
-        className="fixed inset-0 bg-black/50 z-50"
-        onClick={onClose}
-        aria-hidden="true"
-      />
-      <div
-        className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 bg-white rounded-xl shadow-xl p-6 w-full max-w-lg z-50 mx-4 sm:mx-0"
+        onClick={(e) => e.stopPropagation()}
+        className="relative w-full max-w-lg bg-bg-elevated rounded-xl shadow-xl border border-border-subtle animate-scale-in dark:ring-1 dark:ring-brand-400/10 max-h-[90vh] overflow-hidden flex flex-col"
         role="dialog"
         aria-modal="true"
         aria-labelledby="modal-title"
       >
-        <div className="flex items-center justify-between mb-4">
-          <h2 id="modal-title" className="text-lg font-semibold text-gray-900">
+        <div className="flex items-center justify-between px-6 pt-6 pb-4 border-b border-border-subtle shrink-0">
+          <h2
+            id="modal-title"
+            className="text-base font-semibold text-text-primary"
+          >
             {title}
           </h2>
           <button
+            type="button"
             onClick={onClose}
-            className="text-gray-400 hover:text-gray-600 transition-colors"
+            className="w-8 h-8 rounded-md flex items-center justify-center text-text-tertiary hover:bg-bg-sunken hover:text-text-primary transition-all duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500"
             aria-label="Close modal"
           >
             <svg
-              className="w-5 h-5"
+              className="w-4 h-4"
               fill="none"
               viewBox="0 0 24 24"
               stroke="currentColor"
               strokeWidth={2}
+              aria-hidden="true"
             >
               <path
                 strokeLinecap="round"
@@ -59,8 +70,8 @@ export function Modal({ isOpen, onClose, title, children }: ModalProps) {
             </svg>
           </button>
         </div>
-        {children}
+        <div className="px-6 py-4 overflow-y-auto">{children}</div>
       </div>
-    </>
+    </div>
   )
 }
